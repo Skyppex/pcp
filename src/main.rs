@@ -1,25 +1,29 @@
 #![allow(dead_code, unreachable_code)]
 
-use std::{
-    io::{self, Write},
-    thread,
-    time::Duration,
-};
-
 mod cli;
+mod file_operations;
+mod progress;
+mod utils;
 
-fn main() {
-    let spinner_chars = ['⠋', '⠙', '⠸', '⠴', '⠦', '⠇'];
-    let mut index = 0;
+use clap::Parser;
+use cli::Cli;
+use file_operations::copy_files_in_parallel;
+use walkdir::WalkDir;
 
-    // Simulate a long-running task
-    loop {
-        print!("\r{}", spinner_chars[index]);
-        io::stdout().flush().unwrap();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
 
-        index = (index + 1) % spinner_chars.len();
-        thread::sleep(Duration::from_millis(100)); // Adjust the speed of the spinner
-    }
+    let source = cli.source;
+    let destination = cli.destination;
 
-    println!("\rDone!");
+    // Collect all files to be copied
+    let files: Vec<_> = WalkDir::new(&source)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_file())
+        .collect();
+
+    copy_files_in_parallel(&source, &destination, &files);
+
+    Ok(())
 }
