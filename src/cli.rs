@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use clap::Parser;
 
 #[derive(Debug, Clone, PartialEq, Parser)]
@@ -21,4 +23,8 @@ pub struct Cli {
     /// Move files instead of copying them
     #[arg(short = 'm', long = "move", default_value = "false")]
     pub move_files: bool,
+
+    /// Limit the number of threads to use
+    #[arg(short, long)]
+    pub threads: Option<NonZeroUsize>,
 }

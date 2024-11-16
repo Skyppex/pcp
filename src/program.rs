@@ -1,6 +1,9 @@
 use std::fs;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::{
+    iter::{IntoParallelRefIterator, ParallelIterator},
+    ThreadPoolBuilder,
+};
 use walkdir::WalkDir;
 
 use crate::{
@@ -10,6 +13,11 @@ use crate::{
 };
 
 pub fn run(cli: Cli) -> std::io::Result<()> {
+    ThreadPoolBuilder::new()
+        .num_threads(cli.threads.map(|t| t.get()).unwrap_or_else(num_cpus::get))
+        .build_global()
+        .unwrap();
+
     let source = get_path(&cli.source)?;
     let destination = get_path(&cli.destination)?;
 
