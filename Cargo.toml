@@ -5,6 +5,9 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.20", features = ["derive"] }
+dirs = "5.0.1"
+filetime = "0.2.25"
 indicatif = "0.17.9"
+rand = "0.8.5"
 rayon = "1.10.0"
 walkdir = "2.5.0"

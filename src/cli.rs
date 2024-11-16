@@ -7,4 +7,18 @@ pub struct Cli {
 
     /// The destination directory to copy to
     pub destination: String,
+
+    /// Delete files in the destination directory
+    /// that are not in the source directory
+    #[arg(long, default_value = "false")]
+    pub purge: bool,
+
+    /// Overwrite files in the destination directory if they already exist even
+    /// if they have the same size
+    #[arg(long, default_value = "false")]
+    pub overwrite: bool,
+
+    /// Move files instead of copying them
+    #[arg(short = 'm', long = "move", default_value = "false")]
+    pub move_files: bool,
 }
