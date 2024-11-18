@@ -19,11 +19,23 @@ pub fn copy_file(
     let metadata = src_file.metadata()?;
     let total_size = metadata.len();
 
-    if destination.exists() && !cli.overwrite {
-        let dest_size = destination.metadata()?.len();
+    match cli.overwrite {
+        crate::cli::OverwriteMode::Never => {
+            if destination.exists() {
+                return Ok(());
+            }
+        }
+        crate::cli::OverwriteMode::SizeDiffers => {
+            if destination.exists() {
+                let dest_size = destination.metadata()?.len();
 
-        if !cli.overwrite && dest_size == total_size {
-            return Ok(());
+                if dest_size == total_size {
+                    return Ok(());
+                }
+            }
+        }
+        crate::cli::OverwriteMode::Always => {
+            // Proceed with writing the file
         }
     }
 

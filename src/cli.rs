@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 #[derive(Debug, Clone, PartialEq, Parser)]
 pub struct Cli {
@@ -15,10 +15,9 @@ pub struct Cli {
     #[arg(long, default_value = "false")]
     pub purge: bool,
 
-    /// Overwrite files in the destination directory if they already exist even
-    /// if they have the same size
-    #[arg(long, default_value = "false")]
-    pub overwrite: bool,
+    /// If and when to overwrite existing files
+    #[arg(long, value_enum, default_value_t = OverwriteMode::Never)]
+    pub overwrite: OverwriteMode,
 
     /// Move files instead of copying them
     #[arg(short = 'm', long = "move", default_value = "false")]
@@ -27,4 +26,11 @@ pub struct Cli {
     /// Limit the number of threads to use
     #[arg(short, long)]
     pub threads: Option<NonZeroUsize>,
+}
+
+#[derive(Debug, Clone, PartialEq, ValueEnum)]
+pub enum OverwriteMode {
+    Never,
+    SizeDiffers,
+    Always,
 }
