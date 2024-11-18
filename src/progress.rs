@@ -4,7 +4,7 @@ pub fn create_progress_bar(total_size: u64) -> Result<ProgressBar, TemplateError
     let progress_bar = ProgressBar::new(total_size);
 
     progress_bar.set_style(ProgressStyle::default_bar().template(
-        "{spinner:.green} {percent}% {bytes:.yellow}/{total_bytes:.red} [{bar:.cyan/blue}] {msg} ({eta:.blue})",
+        "{percent}% {bytes_per_sec:.green} {bytes:.yellow}/{total_bytes:.magenta} [{bar:.cyan/blue}] {msg} ({eta:.cyan})",
     )?);
 
     Ok(progress_bar)
