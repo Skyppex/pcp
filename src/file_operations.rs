@@ -77,6 +77,7 @@ pub fn copy_file(
 
 pub fn copy_files_in_parallel(cli: Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
     let multi_progress = MultiProgress::new();
+    multi_progress.set_move_cursor(true);
 
     files.par_iter().for_each(|entry| {
         let path = entry.path();
@@ -96,6 +97,7 @@ pub fn copy_files_in_parallel(cli: Cli, source: &Path, destination: &Path, files
 
 pub fn move_files_in_parallel(cli: Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
     let multi_progress = MultiProgress::new();
+    multi_progress.set_move_cursor(true);
 
     files.par_iter().for_each(|entry| {
         let path = entry.path();
