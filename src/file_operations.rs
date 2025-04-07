@@ -48,12 +48,12 @@ pub fn copy_file(
         (src.to_str().unwrap(), destination.to_str().unwrap())
     } else {
         (
-            src.strip_prefix(std::env::current_dir()?)
+            src.strip_prefix(std::env::current_dir().expect("Error getting current dir"))
                 .unwrap_or(src)
                 .to_str()
                 .unwrap(),
             destination
-                .strip_prefix(std::env::current_dir()?)
+                .strip_prefix(std::env::current_dir().expect("Error getting current dir"))
                 .unwrap_or(src)
                 .to_str()
                 .unwrap(),
