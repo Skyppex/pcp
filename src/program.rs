@@ -13,6 +13,13 @@ use crate::{
 };
 
 pub fn run(cli: Cli) -> std::io::Result<()> {
+    if cli.buf_size.to_bytes() == 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Buffer size cannot be zero",
+        ));
+    }
+
     ThreadPoolBuilder::new()
         .num_threads(cli.threads.map(|t| t.get()).unwrap_or_else(num_cpus::get))
         .build_global()

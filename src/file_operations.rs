@@ -50,7 +50,9 @@ pub fn copy_file(
         destination.to_str().unwrap()
     ));
 
-    let mut buffer = [0; 8192];
+    let buf_size = cli.buf_size.to_bytes();
+
+    let mut buffer = vec![0; buf_size];
     let mut bytes_copied = 0;
 
     while bytes_copied < total_size {
