@@ -30,6 +30,10 @@ pub struct Cli {
     /// Set the buffer size for file operations
     #[arg(short, long, default_value = "8MiB")]
     pub buf_size: ByteSize,
+
+    /// Display absolute paths
+    #[arg(long)]
+    pub absolute_paths: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, ValueEnum)]

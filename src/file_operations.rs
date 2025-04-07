@@ -44,11 +44,23 @@ pub fn copy_file(
     // Create a progress bar for the file
     let progress_bar = multi_progress.add(create_progress_bar(total_size).unwrap());
 
-    progress_bar.set_message(format!(
-        "{} -> {}",
-        src.to_str().unwrap(),
-        destination.to_str().unwrap()
-    ));
+    let (src_str, dest_str) = if cli.absolute_paths {
+        (src.to_str().unwrap(), destination.to_str().unwrap())
+    } else {
+        (
+            src.strip_prefix(std::env::current_dir()?)
+                .unwrap_or(src)
+                .to_str()
+                .unwrap(),
+            destination
+                .strip_prefix(std::env::current_dir()?)
+                .unwrap_or(src)
+                .to_str()
+                .unwrap(),
+        )
+    };
+
+    progress_bar.set_message(format!("{} -> {}", src_str, dest_str));
 
     let buf_size = cli.buf_size.to_bytes();
 
