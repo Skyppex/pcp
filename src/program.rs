@@ -52,21 +52,31 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
                 .iter()
                 .any(|src_file| src_file.path().strip_prefix(&source) == dest_path)
             {
-                let src_str = if cli.absolute_paths {
-                    source.to_str().unwrap()
+                let (src_str, dest_str) = if cli.absolute_paths {
+                    (source.to_str().unwrap(), dest_file.path().to_str().unwrap())
                 } else {
-                    source
-                        .strip_prefix(std::env::current_dir().expect("Error getting current dir"))
-                        .unwrap_or(dest_file.path())
-                        .to_str()
-                        .unwrap()
+                    (
+                        source
+                            .strip_prefix(
+                                std::env::current_dir().expect("Error getting current dir"),
+                            )
+                            .unwrap_or(dest_file.path())
+                            .to_str()
+                            .unwrap(),
+                        dest_file
+                            .path()
+                            .strip_prefix(
+                                std::env::current_dir().expect("Error getting current dir"),
+                            )
+                            .unwrap_or(dest_file.path())
+                            .to_str()
+                            .unwrap(),
+                    )
                 };
 
-                delete_file(
-                    &cli,
-                    dest_file.path(),
-                    Some(&format!("File not in source directory: {}", src_str)),
-                )
+                eprintln!("Deleting: {}. Not found in source: {}", dest_str, src_str);
+
+                delete_file(dest_file.path())
             }
         });
     }

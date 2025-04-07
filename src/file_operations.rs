@@ -126,19 +126,7 @@ pub fn move_files_in_parallel(cli: &Cli, source: &Path, destination: &Path, file
                 &multi_progress,
             );
 
-            eprintln!(
-                "Removing file: {}.",
-                if cli.absolute_paths {
-                    path.to_str().unwrap()
-                } else {
-                    path.strip_prefix(std::env::current_dir().expect("Error getting current dir"))
-                        .unwrap_or(path)
-                        .to_str()
-                        .unwrap()
-                }
-            );
-
-            delete_file(cli, path, None);
+            delete_file(path);
         }
     });
 }
@@ -161,22 +149,7 @@ fn create_dirs_and_copy_file(
     }
 }
 
-pub fn delete_file(cli: &Cli, path: &Path, reason: Option<&str>) {
-    let dest = if cli.absolute_paths {
-        path.to_str().unwrap()
-    } else {
-        path.strip_prefix(std::env::current_dir().expect("Error getting current dir"))
-            .unwrap_or(path)
-            .to_str()
-            .unwrap()
-    };
-
-    if let Some(reason) = reason {
-        eprintln!("Deleting file: {}. {}", dest, reason);
-    } else {
-        eprintln!("Deleting file: {}.", dest);
-    }
-
+pub fn delete_file(path: &Path) {
     if path.exists() {
         if let Err(e) = fs::remove_file(path) {
             eprintln!("Error deleting file: {:?}", e);
