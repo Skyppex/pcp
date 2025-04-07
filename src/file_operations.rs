@@ -89,7 +89,7 @@ pub fn copy_file(
     Ok(())
 }
 
-pub fn copy_files_in_parallel(cli: Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
+pub fn copy_files_in_parallel(cli: &Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
     let multi_progress = MultiProgress::new();
     multi_progress.set_move_cursor(true);
 
@@ -102,14 +102,14 @@ pub fn copy_files_in_parallel(cli: Cli, source: &Path, destination: &Path, files
                 entry.path(),
                 relative_path,
                 destination,
-                &cli,
+                cli,
                 &multi_progress,
             )
         }
     });
 }
 
-pub fn move_files_in_parallel(cli: Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
+pub fn move_files_in_parallel(cli: &Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
     let multi_progress = MultiProgress::new();
     multi_progress.set_move_cursor(true);
 
@@ -122,7 +122,7 @@ pub fn move_files_in_parallel(cli: Cli, source: &Path, destination: &Path, files
                 entry.path(),
                 relative_path,
                 destination,
-                &cli,
+                cli,
                 &multi_progress,
             );
 

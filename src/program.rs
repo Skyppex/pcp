@@ -35,9 +35,9 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         .collect::<Vec<_>>();
 
     if cli.move_files {
-        move_files_in_parallel(cli.clone(), &source, &destination, &files);
+        move_files_in_parallel(&cli, &source, &destination, &files);
     } else {
-        copy_files_in_parallel(cli.clone(), &source, &destination, &files);
+        copy_files_in_parallel(&cli, &source, &destination, &files);
     }
 
     if cli.purge {
