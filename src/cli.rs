@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::{num::NonZeroUsize, str::FromStr};
 
 use clap::{Error, Parser, ValueEnum};
@@ -5,10 +6,13 @@ use clap::{Error, Parser, ValueEnum};
 #[derive(Debug, Clone, PartialEq, Parser)]
 pub struct Cli {
     /// The source directory to copy from
-    pub source: String,
+    ///
+    /// > if this is a file, it will be read as though it contains a list of
+    /// directories to be copied
+    pub source: PathBuf,
 
     /// The destination directory to copy to
-    pub destination: String,
+    pub destination: PathBuf,
 
     /// Delete files in the destination directory
     /// that are not in the source directory
