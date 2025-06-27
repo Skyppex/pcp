@@ -10,8 +10,9 @@ pub fn convert_to_path(path: Option<&str>) -> Result<Option<PathBuf>> {
     })
 }
 
-pub fn get_path(path: &str) -> Result<PathBuf> {
-    let path = match path {
+pub fn get_path(path: impl AsRef<Path>) -> Result<PathBuf> {
+    let path_str = path.as_ref().to_str().unwrap();
+    let path = match path_str {
         p if p.starts_with("~") => dirs::home_dir()
             .ok_or(std::io::Error::from(ErrorKind::NotFound))?
             .join(&p[2..]),
