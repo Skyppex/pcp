@@ -1,0 +1,17 @@
+[tasks.build-windows]
+command = "cargo"
+args = ["build", "--release", "--target", "x86_64-pc-windows-gnu"]
+
+[tasks.build-linux]
+command = "cargo"
+args = ["build", "--release", "--target", "x86_64-unknown-linux-gnu"]
+
+[tasks.zip]
+script = [
+  "mkdir -p dist",
+  "zip -j dist/${CARGO_MAKE_CRATE_VERSION}-windows.zip target/x86_64-pc-windows-gnu/release/pcp.exe",
+  "zip -j dist/${CARGO_MAKE_CRATE_VERSION}-linux.zip target/x86_64-unknown-linux-gnu/release/pcp",
+]
+
+[tasks.release]
+dependencies = ["build-windows", "build-linux", "zip"]
