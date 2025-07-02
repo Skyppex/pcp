@@ -38,6 +38,20 @@ pub struct Cli {
     /// Display absolute paths
     #[arg(long)]
     pub absolute_paths: bool,
+
+    #[clap(flatten)]
+    pub verification: Verification,
+}
+
+#[derive(Debug, Clone, PartialEq, Parser)]
+pub struct Verification {
+    /// Verify file contents after copying with a hash
+    #[arg(long)]
+    pub verify: bool,
+
+    /// Retry files which failed the hash check
+    #[arg(long)]
+    pub verify_retries: Option<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, ValueEnum)]

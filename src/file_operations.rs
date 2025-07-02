@@ -1,9 +1,11 @@
+use blake3::Hasher;
 use filetime::{set_file_times, FileTime};
 use indicatif::MultiProgress;
 use rayon::prelude::*;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use walkdir::DirEntry;
 
 use crate::cli::Cli;
@@ -14,7 +16,9 @@ pub fn copy_file(
     src: &Path,
     destination: &Path,
     multi_progress: &MultiProgress,
+    retries: Arc<Mutex<Vec<PathBuf>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut src_hasher = Hasher::new();
     let mut src_file = File::open(src)?;
     let metadata = src_file.metadata()?;
     let total_size = metadata.len();
@@ -39,7 +43,11 @@ pub fn copy_file(
         }
     }
 
-    let mut destination_file = File::create(destination)?;
+    let mut destination_file = OpenOptions::new()
+        .write(true)
+        .read(true)
+        .create(true)
+        .open(destination)?;
 
     // Create a progress bar for the file
     let progress_bar = multi_progress.add(create_progress_bar(total_size).unwrap());
@@ -66,25 +74,71 @@ pub fn copy_file(
 
     let mut buffer = vec![0; buf_size];
     let mut bytes_copied = 0;
+    let mut all_bytes = vec![];
 
-    while bytes_copied < total_size {
-        let bytes_read = src_file.read(&mut buffer)?;
+    if cli.verification.verify {
+        while bytes_copied < total_size {
+            let bytes_read = src_file.read(&mut buffer)?;
 
-        if bytes_read == 0 {
-            break;
+            if bytes_read == 0 {
+                break;
+            }
+
+            let chunk = &buffer[..bytes_read];
+
+            all_bytes.extend(chunk);
+            src_hasher.write(chunk)?;
+            destination_file.write_all(chunk)?;
+            bytes_copied += bytes_read as u64;
+            progress_bar.inc(bytes_read as u64);
         }
 
-        destination_file.write_all(&buffer[..bytes_read])?;
-        bytes_copied += bytes_read as u64;
-        progress_bar.inc(bytes_read as u64);
-    }
+        progress_bar.finish();
 
-    progress_bar.finish();
-    set_file_times(
-        destination,
-        FileTime::from_system_time(metadata.accessed()?),
-        FileTime::from_system_time(metadata.modified()?),
-    )?;
+        let mut dump1 = File::create("/home/skypex/dev/code/pcp/dump1")?;
+        dump1.write_all(&all_bytes)?;
+
+        let src_hash = src_hasher.finalize();
+        destination_file.sync_all()?;
+        let mut dest_bytes = vec![0u8; total_size as usize];
+        destination_file.seek(SeekFrom::Start(0))?;
+        let bytes_read = destination_file.read_to_end(&mut dest_bytes)?;
+        let dest_hash = blake3::hash(&dest_bytes[..bytes_read]);
+        dbg!(&src_hash, &dest_hash);
+
+        if src_hash != dest_hash {
+            retries
+                .lock()
+                .expect("Failed to lock retries")
+                .push(src.to_path_buf())
+        } else {
+            set_file_times(
+                destination,
+                FileTime::from_system_time(metadata.accessed()?),
+                FileTime::from_system_time(metadata.modified()?),
+            )?;
+        }
+    } else {
+        while bytes_copied < total_size {
+            let bytes_read = src_file.read(&mut buffer)?;
+
+            if bytes_read == 0 {
+                break;
+            }
+
+            let chunk = &buffer[..bytes_read];
+            destination_file.write_all(chunk)?;
+            bytes_copied += bytes_read as u64;
+            progress_bar.inc(bytes_read as u64);
+        }
+
+        progress_bar.finish();
+        set_file_times(
+            destination,
+            FileTime::from_system_time(metadata.accessed()?),
+            FileTime::from_system_time(metadata.modified()?),
+        )?;
+    }
 
     Ok(())
 }
@@ -202,9 +256,11 @@ pub fn copy_file_threaded(
 }
 
 pub fn copy_files_par(cli: &Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
+    let retries = Arc::new(Mutex::new(vec![]));
     let multi_progress = MultiProgress::new();
     multi_progress.set_move_cursor(true);
 
+    eprintln!("\n\n0");
     files.par_iter().for_each(|entry| {
         let path = entry.path();
         let prefix = source.to_str().expect("Invalid path");
@@ -216,12 +272,41 @@ pub fn copy_files_par(cli: &Cli, source: &Path, destination: &Path, files: &Vec<
                 destination,
                 cli,
                 &multi_progress,
+                retries.clone(),
+            )
+        }
+    });
+
+    eprintln!("1");
+
+    let retries = retries.clone();
+    eprintln!("2");
+    let retries = retries.lock().expect("Failed to lock retries");
+    eprintln!("3");
+
+    if let (0, 0) = (retries.len(), cli.verification.verify_retries.unwrap_or(0)) {
+        eprintln!("4");
+        return;
+    }
+
+    retries.par_iter().for_each(|path| {
+        let prefix = source.to_str().expect("Invalid path");
+
+        if let Ok(relative_path) = path.strip_prefix(prefix) {
+            create_dirs_and_copy_file(
+                path,
+                relative_path,
+                destination,
+                cli,
+                &multi_progress,
+                Arc::new(Mutex::new(vec![])),
             )
         }
     });
 }
 
 pub fn move_files_par(cli: &Cli, source: &Path, destination: &Path, files: &Vec<DirEntry>) {
+    let retries = Arc::new(Mutex::new(vec![]));
     let multi_progress = MultiProgress::new();
     multi_progress.set_move_cursor(true);
 
@@ -236,11 +321,41 @@ pub fn move_files_par(cli: &Cli, source: &Path, destination: &Path, files: &Vec<
                 destination,
                 cli,
                 &multi_progress,
+                retries.clone(),
             );
 
             delete_file(path);
         } else {
             eprintln!("Error: Unable to get relative path");
+        }
+    });
+
+    eprintln!("1");
+
+    let retries = retries.clone();
+    eprintln!("2");
+    let retries = retries.lock().expect("Failed to lock retries");
+    eprintln!("3");
+
+    dbg!(&retries);
+
+    if let (0, 0) = (retries.len(), cli.verification.verify_retries.unwrap_or(0)) {
+        eprintln!("4");
+        return;
+    }
+
+    retries.par_iter().for_each(|path| {
+        let prefix = source.to_str().expect("Invalid path");
+
+        if let Ok(relative_path) = path.strip_prefix(prefix) {
+            create_dirs_and_copy_file(
+                path,
+                relative_path,
+                destination,
+                cli,
+                &multi_progress,
+                Arc::new(Mutex::new(vec![])),
+            )
         }
     });
 }
@@ -260,6 +375,7 @@ fn create_dirs_and_copy_file(
     destination: &Path,
     cli: &Cli,
     multi_progress: &MultiProgress,
+    retries: Arc<Mutex<Vec<PathBuf>>>,
 ) {
     let destination_path = destination.join(relative_path);
 
@@ -267,7 +383,7 @@ fn create_dirs_and_copy_file(
         fs::create_dir_all(parent).unwrap();
     }
 
-    if let Err(e) = copy_file(cli, path, &destination_path, multi_progress) {
+    if let Err(e) = copy_file(cli, path, &destination_path, multi_progress, retries) {
         eprintln!("Error copying file: {:?}", e);
     }
 }
