@@ -12,7 +12,9 @@ pcp is a parallel copy/move utility with safety and speed as the main focus
 
 ## Installation
 
-currently the only way to install is to build from source
+### Download the binary
+
+[https://github.com/Skyppex/pcp/releases](https://github.com/Skyppex/pcp/releases)
 
 ### Build from source
 
