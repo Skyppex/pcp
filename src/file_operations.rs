@@ -142,8 +142,6 @@ pub fn copy_file_threaded(
 
     progress_bar.set_message(format!("{} -> {}", src_str, dest_str));
 
-    // dest_file.write_all(&vec![0; total_size as usize])?;
-
     let num_threads = cli
         .threads
         .unwrap_or_else(|| {
@@ -160,9 +158,11 @@ pub fn copy_file_threaded(
     (0..num_threads).into_par_iter().for_each(|i| {
         let mut src_file = File::open(src).expect("Failed to open source file");
         let mut dest_file = File::create(destination).expect("Failed to create destination file");
+        dest_file
+            .set_len(total_size)
+            .expect("Failed to set file length for destination file");
 
         let offset = i as u64 * chunk_size;
-        dbg!(offset as f64 / chunk_size as f64);
 
         src_file
             .seek(SeekFrom::Start(offset))
@@ -174,10 +174,6 @@ pub fn copy_file_threaded(
 
         let mut buffer = vec![0; buf_size];
         let mut bytes_copied = 0;
-
-        let current_pos = src_file.stream_position().unwrap();
-
-        eprintln!("i: {}, pos: {}, chunk: {}", i, current_pos, chunk_size);
 
         while bytes_copied < chunk_size {
             let bytes_read = src_file.read(&mut buffer).expect("Failed to read");
