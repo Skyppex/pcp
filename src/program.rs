@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use rayon::{
     iter::{IntoParallelRefIterator, ParallelIterator},
     ThreadPoolBuilder,
@@ -6,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     cli::Cli,
-    file_operations::{copy_files_in_parallel, delete_file, move_files_in_parallel},
+    file_operations::{copy_file_par, copy_files_par, delete_file, move_file_par, move_files_par},
     path_utils::get_path,
 };
 
@@ -26,6 +28,31 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
     let source = get_path(&cli.source)?;
     let destination = get_path(&cli.destination)?;
 
+    if source.exists() && source.is_file() {
+        if cli.purge {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Purge option is not supported for single files",
+            ));
+        }
+
+        handle_single_file(cli, source, destination);
+    } else {
+        handle_multiple_files(cli, source, destination);
+    }
+
+    Ok(())
+}
+
+fn handle_single_file(cli: Cli, source: PathBuf, destination: PathBuf) {
+    if cli.move_files {
+        move_file_par(&cli, &source, &destination);
+    } else {
+        copy_file_par(&cli, &source, &destination);
+    }
+}
+
+fn handle_multiple_files(cli: Cli, source: PathBuf, destination: PathBuf) {
     let files = WalkDir::new(&source)
         .into_iter()
         .filter_map(Result::ok)
@@ -33,9 +60,9 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         .collect::<Vec<_>>();
 
     if cli.move_files {
-        move_files_in_parallel(&cli, &source, &destination, &files);
+        move_files_par(&cli, &source, &destination, &files);
     } else {
-        copy_files_in_parallel(&cli, &source, &destination, &files);
+        copy_files_par(&cli, &source, &destination, &files);
     }
 
     if cli.purge {
@@ -80,6 +107,4 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
             }
         });
     }
-
-    Ok(())
 }
