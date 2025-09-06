@@ -12,7 +12,7 @@ pub struct Cli {
     pub source: PathBuf,
 
     /// The destination directory to copy to
-    pub destination: PathBuf,
+    pub destinations: Vec<PathBuf>,
 
     /// Delete files in the destination directory
     /// that are not in the source directory
@@ -47,10 +47,12 @@ pub struct Cli {
 pub struct Verification {
     /// Verify file contents after copying with a hash
     #[arg(long)]
+    #[clap(hide = true)]
     pub verify: bool,
 
     /// Retry files which failed the hash check
     #[arg(long)]
+    #[clap(hide = true)]
     pub verify_retries: Option<u8>,
 }
 
