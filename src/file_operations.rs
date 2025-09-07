@@ -23,6 +23,8 @@ pub fn copy_file(
     let metadata = src_file.metadata()?;
     let total_size = metadata.len();
 
+    eprintln!("100");
+
     match cli.overwrite {
         crate::cli::OverwriteMode::Never => {
             if destination.exists() {
@@ -43,15 +45,20 @@ pub fn copy_file(
         }
     }
 
+    eprintln!("101");
+
     let mut destination_file = OpenOptions::new()
         .write(true)
         .read(true)
         .create(true)
+        .truncate(false)
         .open(destination)?;
 
+    eprintln!("102");
     // Create a progress bar for the file
     let progress_bar = multi_progress.add(create_progress_bar(total_size).unwrap());
 
+    eprintln!("103");
     let (src_str, dest_str) = if cli.absolute_paths {
         (src.to_str().unwrap(), destination.to_str().unwrap())
     } else {
@@ -68,15 +75,19 @@ pub fn copy_file(
         )
     };
 
+    eprintln!("104");
     progress_bar.set_message(format!("{} -> {}", src_str, dest_str));
 
     let buf_size = cli.buf_size.to_bytes();
 
+    eprintln!("105");
     let mut buffer = vec![0; buf_size];
     let mut bytes_copied = 0;
-    let mut all_bytes = vec![];
+    // let mut all_bytes = vec![];
 
+    eprintln!("106");
     if cli.verification.verify {
+        eprintln!("107");
         while bytes_copied < total_size {
             let bytes_read = src_file.read(&mut buffer)?;
 
@@ -86,8 +97,8 @@ pub fn copy_file(
 
             let chunk = &buffer[..bytes_read];
 
-            all_bytes.extend(chunk);
-            src_hasher.write(chunk)?;
+            // all_bytes.extend(chunk);
+            src_hasher.write_all(chunk)?;
             destination_file.write_all(chunk)?;
             bytes_copied += bytes_read as u64;
             progress_bar.inc(bytes_read as u64);
@@ -95,18 +106,27 @@ pub fn copy_file(
 
         progress_bar.finish();
 
-        let mut dump1 = File::create("/home/skypex/dev/code/pcp/dump1")?;
-        dump1.write_all(&all_bytes)?;
+        eprintln!("108");
+        // let mut dump1 = File::create("/home/skypex/dev/code/pcp/dump1")?;
+        // dump1.write_all(&all_bytes)?;
 
+        // NOTE: it looks like just checking the written bytes to the destination file's bytes
+        // isn't good enough. if the source file changes then thats not reflected in the
+        // src_hasher. maybe i just need to read the entire src again instead of this. but also i
+        // might need both. have to think more about it.
+        eprintln!("checking hashes");
         let src_hash = src_hasher.finalize();
         destination_file.sync_all()?;
-        let mut dest_bytes = vec![0u8; total_size as usize];
+        let mut dest_bytes = vec![];
         destination_file.seek(SeekFrom::Start(0))?;
-        let bytes_read = destination_file.read_to_end(&mut dest_bytes)?;
-        let dest_hash = blake3::hash(&dest_bytes[..bytes_read]);
+        destination_file.read_to_end(&mut dest_bytes)?;
+        let dest_hash = blake3::hash(&dest_bytes);
         dbg!(&src_hash, &dest_hash);
 
         if src_hash != dest_hash {
+            eprintln!("hashes don't match");
+            dbg!("adding {} to retry list", src);
+
             retries
                 .lock()
                 .expect("Failed to lock retries")
@@ -293,18 +313,26 @@ pub fn copy_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
     }
 
     retries.par_iter().for_each(|path| {
+        eprintln!("5");
         let prefix = source.to_str().expect("Invalid path");
 
+        eprintln!("6");
         if let Ok(relative_path) = path.strip_prefix(prefix) {
+            eprintln!("7");
+            let mut cli = cli.clone();
+            cli.overwrite = crate::cli::OverwriteMode::Always;
+
             create_dirs_and_copy_file(
                 path,
                 relative_path,
                 destinations.clone(),
-                cli,
+                &cli,
                 &multi_progress,
                 Arc::new(Mutex::new(vec![])),
-            )
+            );
+            eprintln!("8");
         }
+        eprintln!("9");
     });
 }
 

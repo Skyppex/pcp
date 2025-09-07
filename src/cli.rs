@@ -47,12 +47,10 @@ pub struct Cli {
 pub struct Verification {
     /// Verify file contents after copying with a hash
     #[arg(long)]
-    #[clap(hide = true)]
     pub verify: bool,
 
     /// Retry files which failed the hash check
     #[arg(long)]
-    #[clap(hide = true)]
     pub verify_retries: Option<u8>,
 }
 

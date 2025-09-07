@@ -20,7 +20,7 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         ));
     }
 
-    if cli.destinations.len() == 0 {
+    if cli.destinations.is_empty() {
         eprintln!("You must specify at least 1 destination path");
         std::process::exit(1);
         return Ok(());
@@ -35,10 +35,10 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
     let destinations = cli
         .destinations
         .iter()
-        .map(|d| get_path(d))
+        .map(get_path)
         .collect::<Result<Vec<_>, _>>()?;
 
-    if destinations.iter().any(|d| *d == source) {
+    if destinations.contains(&source) {
         eprintln!("Source and Destination paths are the same");
         std::process::exit(1);
         return Ok(());
