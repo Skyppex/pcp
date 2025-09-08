@@ -50,8 +50,8 @@ pub struct Verification {
     pub verify: bool,
 
     /// Retry files which failed the hash check
-    #[arg(long)]
-    pub verify_retries: Option<u8>,
+    #[arg(long, default_value = "1")]
+    pub verify_retries: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, ValueEnum)]

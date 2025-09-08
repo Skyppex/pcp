@@ -307,7 +307,7 @@ pub fn copy_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
     let retries = retries.lock().expect("Failed to lock retries");
     eprintln!("3");
 
-    if let (0, 0) = (retries.len(), cli.verification.verify_retries.unwrap_or(0)) {
+    if let (0, 0) = (retries.len(), cli.verification.verify_retries) {
         eprintln!("4");
         return;
     }
@@ -370,7 +370,7 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
 
     dbg!(&retries);
 
-    if let (0, 0) = (retries.len(), cli.verification.verify_retries.unwrap_or(0)) {
+    if let (0, 0) = (retries.len(), cli.verification.verify_retries) {
         eprintln!("4");
         return;
     }
