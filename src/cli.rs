@@ -8,7 +8,7 @@ pub struct Cli {
     /// The source directory to copy from
     ///
     /// > if this is a file, it will be read as though it contains a list of
-    /// directories to be copied
+    /// > directories to be copied
     pub source: PathBuf,
 
     /// The destination directory to copy to
