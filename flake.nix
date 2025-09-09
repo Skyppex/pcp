@@ -33,6 +33,7 @@
             "rust-src"
             "rust-docs"
             "rust-std"
+            "rust-analyzer"
           ])
         ];
 
