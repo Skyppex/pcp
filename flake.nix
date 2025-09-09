@@ -31,6 +31,8 @@
             "rustfmt"
             "clippy"
             "rust-src"
+            "rust-docs"
+            "rust-std"
           ])
         ];
 
