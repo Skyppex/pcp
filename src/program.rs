@@ -44,12 +44,16 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         return Ok(());
     }
 
-    handle_multiple_files(cli, source, destinations);
+    handle_multiple_files(cli, source, destinations)?;
 
     Ok(())
 }
 
-fn handle_multiple_files(cli: Cli, source: PathBuf, destinations: Vec<PathBuf>) {
+fn handle_multiple_files(
+    cli: Cli,
+    source: PathBuf,
+    destinations: Vec<PathBuf>,
+) -> std::io::Result<()> {
     let files = WalkDir::new(&source)
         .into_iter()
         .filter_map(Result::ok)
@@ -62,14 +66,14 @@ fn handle_multiple_files(cli: Cli, source: PathBuf, destinations: Vec<PathBuf>) 
             &source,
             destinations.iter().map(|d| d.as_path()).collect(),
             &files,
-        );
+        )?;
     } else {
         copy_files_par(
             &cli,
             &source,
             destinations.iter().map(|d| d.as_path()).collect(),
             &files,
-        );
+        )?;
     }
 
     if cli.purge {
@@ -116,4 +120,6 @@ fn handle_multiple_files(cli: Cli, source: PathBuf, destinations: Vec<PathBuf>) 
             });
         }
     }
+
+    Ok(())
 }

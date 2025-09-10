@@ -6,6 +6,7 @@ mod io_utils;
 mod path_utils;
 mod program;
 mod progress;
+mod progress_bar;
 mod utils;
 
 use clap::Parser;

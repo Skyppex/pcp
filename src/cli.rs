@@ -39,6 +39,11 @@ pub struct Cli {
     #[arg(long)]
     pub absolute_paths: bool,
 
+    /// Track progress in a special .pcp/ directory which
+    /// is removed once the job is done
+    #[arg(long)]
+    pub track_progress: bool,
+
     #[clap(flatten)]
     pub verification: Verification,
 }

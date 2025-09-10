@@ -9,13 +9,15 @@ use std::sync::{Arc, Mutex};
 use walkdir::DirEntry;
 
 use crate::cli::Cli;
-use crate::progress::create_progress_bar;
+use crate::progress::CompletionTracker;
+use crate::progress_bar::create_progress_bar;
 
 pub fn copy_file(
     cli: &Cli,
     src: &Path,
     destination: &Path,
     multi_progress: &MultiProgress,
+    completed_tracker: Arc<Mutex<&mut CompletionTracker>>,
     retries: Arc<Mutex<Vec<PathBuf>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut src_file = File::open(src)?;
@@ -94,9 +96,6 @@ pub fn copy_file(
 
         progress_bar.finish();
 
-        // let mut dump1 = File::create("/home/skypex/dev/code/pcp/dump1")?;
-        // dump1.write_all(&all_bytes)?;
-
         let mut src_bytes = vec![];
         src_file.seek(SeekFrom::Start(0))?;
         src_file.read_to_end(&mut src_bytes)?;
@@ -118,6 +117,12 @@ pub fn copy_file(
                 FileTime::from_system_time(metadata.accessed()?),
                 FileTime::from_system_time(metadata.modified()?),
             )?;
+
+            eprintln!("hello");
+            completed_tracker
+                .lock()
+                .expect("failed to lock completed tracker")
+                .add_completed(destination)?;
         }
     } else {
         while bytes_copied < total_size {
@@ -139,6 +144,13 @@ pub fn copy_file(
             FileTime::from_system_time(metadata.accessed()?),
             FileTime::from_system_time(metadata.modified()?),
         )?;
+
+        eprintln!("hello");
+        eprintln!("{}", destination.display());
+        completed_tracker
+            .lock()
+            .expect("failed to lock completed tracker")
+            .add_completed(destination)?;
     }
 
     Ok(())
@@ -259,36 +271,51 @@ pub fn copy_file_threaded(
     Ok(())
 }
 
-pub fn copy_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files: &Vec<DirEntry>) {
+pub fn copy_files_par(
+    cli: &Cli,
+    source: &Path,
+    destinations: Vec<&Path>,
+    files: &Vec<DirEntry>,
+) -> std::io::Result<()> {
     let retries = Arc::new(Mutex::new(vec![]));
     let multi_progress = MultiProgress::new();
     multi_progress.set_move_cursor(true);
 
-    files.par_iter().for_each(|entry| {
-        let path = entry.path();
-        let prefix = source.to_str().expect("Invalid path");
+    for destination in &destinations {
+        let mut tracker = CompletionTracker::open(destination)?;
+        let completion_tracker = Arc::new(Mutex::new(&mut tracker));
 
-        if let Ok(relative_path) = path.strip_prefix(prefix) {
-            create_dirs_and_copy_file(
-                entry.path(),
-                relative_path,
-                destinations.clone(),
-                cli,
-                &multi_progress,
-                retries.clone(),
-            )
-        }
-    });
+        files.par_iter().try_for_each(|entry| {
+            let path = entry.path();
+            let prefix = source.to_str().expect("Invalid path");
+
+            if let Ok(relative_path) = path.strip_prefix(prefix) {
+                create_dirs_and_copy_file(
+                    entry.path(),
+                    relative_path,
+                    destination,
+                    cli,
+                    &multi_progress,
+                    completion_tracker.clone(),
+                    retries.clone(),
+                )?;
+            }
+
+            Result::<_, std::io::Error>::Ok(())
+        })?;
+
+        tracker.remove()?;
+    }
 
     if !cli.verification.verify {
-        return;
+        return Ok(());
     }
 
     let retries = retries.clone();
     let retries = retries.lock().expect("Failed to lock retries");
 
     match (retries.len(), cli.verification.verify_retries) {
-        (0, _) => return,
+        (0, _) => return Ok(()),
         (len, 0) if len >= 1 => {
             eprintln!("Hash check failed for the following files:");
 
@@ -301,71 +328,98 @@ pub fn copy_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
         _ => {}
     }
 
-    retries.par_iter().for_each(|path| {
-        let prefix = source.to_str().expect("Invalid path");
+    for destination in destinations {
+        let mut tracker = CompletionTracker::open(destination)?;
+        let completion_tracker = Arc::new(Mutex::new(&mut tracker));
 
-        if let Ok(relative_path) = path.strip_prefix(prefix) {
-            let mut cli = cli.clone();
-            cli.overwrite = crate::cli::OverwriteMode::Always;
+        retries.par_iter().try_for_each(|path| {
+            let prefix = source.to_str().expect("Invalid path");
 
-            create_dirs_and_copy_file(
-                path,
-                relative_path,
-                destinations.clone(),
-                &cli,
-                &multi_progress,
-                Arc::new(Mutex::new(vec![])),
-            );
-        }
-    });
+            if let Ok(relative_path) = path.strip_prefix(prefix) {
+                let mut cli = cli.clone();
+                cli.overwrite = crate::cli::OverwriteMode::Always;
+
+                create_dirs_and_copy_file(
+                    path,
+                    relative_path,
+                    destination,
+                    &cli,
+                    &multi_progress,
+                    completion_tracker.clone(),
+                    Arc::new(Mutex::new(vec![])),
+                )?;
+            }
+
+            Result::<_, std::io::Error>::Ok(())
+        })?;
+
+        tracker.remove()?;
+    }
+
+    Ok(())
 }
 
-pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files: &Vec<DirEntry>) {
+pub fn move_files_par(
+    cli: &Cli,
+    source: &Path,
+    destinations: Vec<&Path>,
+    files: &Vec<DirEntry>,
+) -> std::io::Result<()> {
     let only_destination = destinations.first();
     let retries = Arc::new(Mutex::new(vec![]));
     let multi_progress = MultiProgress::new();
     multi_progress.set_move_cursor(true);
 
-    files.par_iter().for_each(|entry| {
-        let path = entry.path();
-        let prefix = source.to_str().expect("Invalid path");
+    for destination in &destinations {
+        let mut tracker = CompletionTracker::open(destination)?;
+        let completion_tracker = Arc::new(Mutex::new(&mut tracker));
 
-        if let Ok(relative_path) = path.strip_prefix(prefix) {
-            if let Some(dest) = only_destination {
-                let dest = dest.join(relative_path);
+        files.par_iter().try_for_each(|entry| {
+            let path = entry.path();
+            let prefix = source.to_str().expect("Invalid path");
 
-                if std::fs::rename(path, &dest).is_ok() {
-                    println!("Renamed {} -> {}", path.display(), dest.display());
-                    return;
+            if let Ok(relative_path) = path.strip_prefix(prefix) {
+                if let Some(dest) = only_destination {
+                    let dest = dest.join(relative_path);
+
+                    if std::fs::rename(path, &dest).is_ok() {
+                        println!("Renamed {} -> {}", path.display(), dest.display());
+                        return Ok(());
+                    }
                 }
+
+                create_dirs_and_copy_file(
+                    path,
+                    relative_path,
+                    destination,
+                    cli,
+                    &multi_progress,
+                    completion_tracker.clone(),
+                    retries.clone(),
+                )?;
+
+                if !retries
+                    .lock()
+                    .expect("failed to lock retries")
+                    .contains(&path.to_path_buf())
+                {
+                    delete_file(path);
+                }
+            } else {
+                eprintln!("Error: Unable to get relative path");
             }
 
-            create_dirs_and_copy_file(
-                path,
-                relative_path,
-                destinations.clone(),
-                cli,
-                &multi_progress,
-                retries.clone(),
-            );
+            Result::<_, std::io::Error>::Ok(())
+        })?;
 
-            if !retries
-                .lock()
-                .expect("failed to lock retries")
-                .contains(&path.to_path_buf())
-            {
-                delete_file(path);
-            }
-        } else {
-            eprintln!("Error: Unable to get relative path");
-        }
-    });
+        tracker.remove()?;
+    }
 
     let retries = retries.clone();
     let retries = retries.lock().expect("Failed to lock retries");
 
     match (retries.len(), cli.verification.verify_retries) {
-        (0, _) => return,
+        (0, _) => return Ok(()),
         (len, 0) if len >= 1 => {
             eprintln!("Hash check failed for the following files:");
 
@@ -378,59 +432,71 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
         _ => {}
     }
 
-    retries.par_iter().for_each(|path| {
-        let prefix = source.to_str().expect("Invalid path");
+    for destination in destinations {
+        let mut tracker = CompletionTracker::open(destination)?;
+        let completion_tracker = Arc::new(Mutex::new(&mut tracker));
 
-        if let Ok(relative_path) = path.strip_prefix(prefix) {
-            let mut cli = cli.clone();
-            cli.overwrite = crate::cli::OverwriteMode::Always;
-            let retries = Arc::new(Mutex::new(vec![]));
+        retries.par_iter().try_for_each(|path| {
+            let prefix = source.to_str().expect("Invalid path");
 
-            create_dirs_and_copy_file(
-                path,
-                relative_path,
-                destinations.clone(),
-                &cli,
-                &multi_progress,
-                retries.clone(),
-            );
+            if let Ok(relative_path) = path.strip_prefix(prefix) {
+                let mut cli = cli.clone();
+                cli.overwrite = crate::cli::OverwriteMode::Always;
+                let retries = Arc::new(Mutex::new(vec![]));
 
-            if !retries
-                .lock()
-                .expect("failed to lock retries")
-                .contains(&path.to_path_buf())
-            {
-                delete_file(path);
+                create_dirs_and_copy_file(
+                    path,
+                    relative_path,
+                    destination,
+                    &cli,
+                    &multi_progress,
+                    completion_tracker.clone(),
+                    retries.clone(),
+                )?;
+
+                if !retries
+                    .lock()
+                    .expect("failed to lock retries")
+                    .contains(&path.to_path_buf())
+                {
+                    delete_file(path);
+                }
             }
-        }
-    });
+
+            Result::<_, std::io::Error>::Ok(())
+        })?;
+    }
+
+    Ok(())
 }
 
 fn create_dirs_and_copy_file(
     path: &Path,
     relative_path: &Path,
-    destinations: Vec<&Path>,
+    destination: &Path,
     cli: &Cli,
     multi_progress: &MultiProgress,
+    completion_tracker: Arc<Mutex<&mut CompletionTracker>>,
     retries: Arc<Mutex<Vec<PathBuf>>>,
-) {
-    for destination in destinations {
-        let destination_path = destination.join(relative_path);
+) -> std::io::Result<()> {
+    let destination_path = destination.join(relative_path);
 
-        if let Some(parent) = destination_path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-
-        if let Err(e) = copy_file(
-            cli,
-            path,
-            &destination_path,
-            multi_progress,
-            retries.clone(),
-        ) {
-            eprintln!("Error copying file: {:?}", e);
-        }
+    if let Some(parent) = destination_path.parent() {
+        fs::create_dir_all(parent).unwrap();
     }
+
+    if let Err(e) = copy_file(
+        cli,
+        path,
+        &destination_path,
+        multi_progress,
+        completion_tracker.clone(),
+        retries.clone(),
+    ) {
+        eprintln!("Error copying file: {:?}", e);
+    }
+
+    Ok(())
 }
 
 pub fn delete_file(path: &Path) {

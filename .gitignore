@@ -1,5 +1,6 @@
 /target
 /dist
 *.txt
+*.pcp
 /result
 /.direnv
