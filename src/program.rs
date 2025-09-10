@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     cli::Cli,
-    file_operations::{copy_file_par, copy_files_par, delete_file, move_file_par, move_files_par},
+    file_operations::{copy_files_par, delete_file, move_files_par},
     path_utils::get_path,
 };
 
@@ -44,36 +44,9 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         return Ok(());
     }
 
-    if source.exists() && source.is_file() {
-        if cli.purge {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Purge option is not supported for single files",
-            ));
-        }
-
-        handle_single_file(cli, source, destinations);
-    } else {
-        handle_multiple_files(cli, source, destinations);
-    }
+    handle_multiple_files(cli, source, destinations);
 
     Ok(())
-}
-
-fn handle_single_file(cli: Cli, source: PathBuf, destinations: Vec<PathBuf>) {
-    if cli.move_files {
-        move_file_par(
-            &cli,
-            &source,
-            destinations.iter().map(|p| p.as_path()).collect(),
-        );
-    } else {
-        copy_file_par(
-            &cli,
-            &source,
-            destinations.iter().map(|p| p.as_path()).collect(),
-        );
-    }
 }
 
 fn handle_multiple_files(cli: Cli, source: PathBuf, destinations: Vec<PathBuf>) {

@@ -406,15 +406,6 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
     });
 }
 
-pub fn copy_file_par(cli: &Cli, source: &Path, destinations: Vec<&Path>) {
-    create_dir_and_copy_file_par(source, destinations, cli);
-}
-
-pub fn move_file_par(cli: &Cli, source: &Path, destinations: Vec<&Path>) {
-    create_dir_and_copy_file_par(source, destinations, cli);
-    delete_file(source);
-}
-
 fn create_dirs_and_copy_file(
     path: &Path,
     relative_path: &Path,
@@ -439,18 +430,6 @@ fn create_dirs_and_copy_file(
         ) {
             eprintln!("Error copying file: {:?}", e);
         }
-    }
-}
-
-fn create_dir_and_copy_file_par(path: &Path, destinations: Vec<&Path>, cli: &Cli) {
-    for destination in destinations.iter() {
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-    }
-
-    if let Err(e) = copy_file_threaded(cli, path, destinations) {
-        eprintln!("Error copying file: {:?}", e);
     }
 }
 
