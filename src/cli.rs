@@ -6,12 +6,9 @@ use clap::{Error, Parser, ValueEnum};
 #[derive(Debug, Clone, PartialEq, Parser)]
 pub struct Cli {
     /// The source directory to copy from
-    ///
-    /// > if this is a file, it will be read as though it contains a list of
-    /// > directories to be copied
     pub source: PathBuf,
 
-    /// The destination directory to copy to
+    /// The destination directories to copy into
     pub destinations: Vec<PathBuf>,
 
     /// Delete files in the destination directory
@@ -50,7 +47,7 @@ pub struct Verification {
     pub verify: bool,
 
     /// Retry files which failed the hash check
-    #[arg(long, default_value = "1")]
+    #[arg(long, default_value = "0")]
     pub verify_retries: u8,
 }
 

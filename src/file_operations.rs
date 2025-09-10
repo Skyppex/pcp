@@ -1,10 +1,10 @@
-use blake3::Hasher;
 use filetime::{set_file_times, FileTime};
 use indicatif::MultiProgress;
 use rayon::prelude::*;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::process::exit;
 use std::sync::{Arc, Mutex};
 use walkdir::DirEntry;
 
@@ -280,11 +280,25 @@ pub fn copy_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
         }
     });
 
+    if !cli.verification.verify {
+        return;
+    }
+
     let retries = retries.clone();
     let retries = retries.lock().expect("Failed to lock retries");
 
-    if let (0, 0) = (retries.len(), cli.verification.verify_retries) {
-        return;
+    match (retries.len(), cli.verification.verify_retries) {
+        (0, _) => return,
+        (len, 0) if len >= 1 => {
+            eprintln!("Hash check failed for the following files:");
+
+            for failed in retries.iter() {
+                eprintln!("{}", failed.display());
+            }
+
+            exit(1);
+        }
+        _ => {}
     }
 
     retries.par_iter().for_each(|path| {
@@ -325,7 +339,13 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
                 retries.clone(),
             );
 
-            delete_file(path);
+            if !retries
+                .lock()
+                .expect("failed to lock retries")
+                .contains(&path.to_path_buf())
+            {
+                delete_file(path);
+            }
         } else {
             eprintln!("Error: Unable to get relative path");
         }
@@ -334,8 +354,18 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
     let retries = retries.clone();
     let retries = retries.lock().expect("Failed to lock retries");
 
-    if let (0, 0) = (retries.len(), cli.verification.verify_retries) {
-        return;
+    match (retries.len(), cli.verification.verify_retries) {
+        (0, _) => return,
+        (len, 0) if len >= 1 => {
+            eprintln!("Hash check failed for the following files:");
+
+            for failed in retries.iter() {
+                eprintln!("{}", failed.display());
+            }
+
+            exit(1);
+        }
+        _ => {}
     }
 
     retries.par_iter().for_each(|path| {
@@ -344,6 +374,7 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
         if let Ok(relative_path) = path.strip_prefix(prefix) {
             let mut cli = cli.clone();
             cli.overwrite = crate::cli::OverwriteMode::Always;
+            let retries = Arc::new(Mutex::new(vec![]));
 
             create_dirs_and_copy_file(
                 path,
@@ -351,8 +382,16 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
                 destinations.clone(),
                 &cli,
                 &multi_progress,
-                Arc::new(Mutex::new(vec![])),
-            )
+                retries.clone(),
+            );
+
+            if !retries
+                .lock()
+                .expect("failed to lock retries")
+                .contains(&path.to_path_buf())
+            {
+                delete_file(path);
+            }
         }
     });
 }
