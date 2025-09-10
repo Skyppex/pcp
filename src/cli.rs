@@ -21,6 +21,9 @@ pub struct Cli {
     pub overwrite: OverwriteMode,
 
     /// Move files instead of copying them
+    ///
+    /// > tries to use rename if possible
+    /// > rename is not supported when passing multiple destinations
     #[arg(short = 'm', long = "move", default_value = "false")]
     pub move_files: bool,
 

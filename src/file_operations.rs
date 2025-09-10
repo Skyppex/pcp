@@ -321,6 +321,7 @@ pub fn copy_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
 }
 
 pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files: &Vec<DirEntry>) {
+    let only_destination = destinations.first();
     let retries = Arc::new(Mutex::new(vec![]));
     let multi_progress = MultiProgress::new();
     multi_progress.set_move_cursor(true);
@@ -330,8 +331,17 @@ pub fn move_files_par(cli: &Cli, source: &Path, destinations: Vec<&Path>, files:
         let prefix = source.to_str().expect("Invalid path");
 
         if let Ok(relative_path) = path.strip_prefix(prefix) {
+            if let Some(dest) = only_destination {
+                let dest = dest.join(relative_path);
+
+                if std::fs::rename(path, &dest).is_ok() {
+                    println!("Renamed {} -> {}", path.display(), dest.display());
+                    return;
+                }
+            }
+
             create_dirs_and_copy_file(
-                entry.path(),
+                path,
                 relative_path,
                 destinations.clone(),
                 cli,
