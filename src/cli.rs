@@ -5,44 +5,45 @@ use clap::{Error, Parser, ValueEnum};
 
 #[derive(Debug, Clone, PartialEq, Parser)]
 pub struct Cli {
-    /// The source directory to copy from
+    /// the source directory to copy from
     pub source: PathBuf,
 
-    /// The destination directories to copy into
+    /// the destination directories to copy into
     pub destinations: Vec<PathBuf>,
 
-    /// Delete files in the destination directory
+    /// delete files in the destination directory
     /// that are not in the source directory
     #[arg(long, default_value = "false")]
     pub purge: bool,
 
-    /// If and when to overwrite existing files
+    /// if and when to overwrite existing files
     #[arg(long, value_enum, default_value_t = OverwriteMode::Never)]
     pub overwrite: OverwriteMode,
 
-    /// Move files instead of copying them
-    ///
-    /// > tries to use rename if possible
-    /// > rename is not supported when passing multiple destinations
+    /// move files instead of copying them.
+    /// tries to use rename if possible.
+    /// rename is not supported when passing multiple destinations
     #[arg(short = 'm', long = "move", default_value = "false")]
     pub move_files: bool,
 
-    /// Limit the number of threads to use
+    /// limit the number of threads to use
     #[arg(short, long)]
     pub threads: Option<NonZeroUsize>,
 
-    /// Set the buffer size for file operations
+    /// set the buffer size for file operations
     #[arg(short, long, default_value = "8MiB")]
     pub buf_size: ByteSize,
 
-    /// Display absolute paths
+    /// display absolute paths
     #[arg(long)]
     pub absolute_paths: bool,
 
-    /// Track progress in a special .pcp/ directory which
-    /// is removed once the job is done
+    /// track progress in a special .pcp/ directory which
+    /// is removed once the job is done.
+    /// if passed and the .pcp/ directory already exists, it will be
+    /// read before starting the copy job
     #[arg(long)]
-    pub track_progress: bool,
+    pub use_progress: bool,
 
     #[clap(flatten)]
     pub verification: Verification,
@@ -50,11 +51,11 @@ pub struct Cli {
 
 #[derive(Debug, Clone, PartialEq, Parser)]
 pub struct Verification {
-    /// Verify file contents after copying with a hash
+    /// verify file contents after copying with a hash
     #[arg(long)]
     pub verify: bool,
 
-    /// Retry files which failed the hash check
+    /// retry files which failed the hash check
     #[arg(long, default_value = "0")]
     pub verify_retries: u8,
 }

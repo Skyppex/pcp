@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use rayon::{
     iter::{IntoParallelRefIterator, ParallelIterator},
@@ -10,6 +13,7 @@ use crate::{
     cli::Cli,
     file_operations::{copy_files_par, delete_file, move_files_par},
     path_utils::get_path,
+    progress::{cleanup, CompletionTracker},
 };
 
 pub fn run(cli: Cli) -> std::io::Result<()> {
@@ -45,7 +49,6 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
     }
 
     handle_multiple_files(cli, source, destinations)?;
-
     Ok(())
 }
 
@@ -60,24 +63,38 @@ fn handle_multiple_files(
         .filter(|e| e.path().is_file())
         .collect::<Vec<_>>();
 
-    if cli.move_files {
-        move_files_par(
-            &cli,
-            &source,
-            destinations.iter().map(|d| d.as_path()).collect(),
-            &files,
-        )?;
-    } else {
-        copy_files_par(
-            &cli,
-            &source,
-            destinations.iter().map(|d| d.as_path()).collect(),
-            &files,
-        )?;
-    }
+    for destination in &destinations {
+        let mut tracker = CompletionTracker::open(destination, cli.use_progress)?;
+        let completed = tracker.read();
 
-    if cli.purge {
-        for destination in destinations {
+        let files = files
+            .clone()
+            .into_iter()
+            .filter(|e| !completed.contains(e.file_name()))
+            .collect();
+
+        let completion_tracker = Arc::new(Mutex::new(&mut tracker));
+
+        if cli.move_files {
+            move_files_par(
+                &cli,
+                &source,
+                &destination,
+                completion_tracker.clone(),
+                destinations.len() == 1,
+                &files,
+            )?;
+        } else {
+            copy_files_par(
+                &cli,
+                &source,
+                &destination,
+                completion_tracker.clone(),
+                &files,
+            )?;
+        }
+
+        if cli.purge {
             let dest_files = WalkDir::new(&destination)
                 .into_iter()
                 .filter_map(Result::ok)
@@ -118,6 +135,12 @@ fn handle_multiple_files(
                     delete_file(dest_file.path())
                 }
             });
+        }
+
+        tracker.remove()?;
+
+        if cli.use_progress {
+            cleanup(destination)?;
         }
     }
 
