@@ -74,9 +74,6 @@ pub fn copy_file(
 
     let buf_size = cli.buf_size.to_bytes();
 
-    let mut buffer = vec![0; buf_size];
-    let mut bytes_copied = 0;
-
     copy_chunks(
         destination,
         &mut src_file,
@@ -84,8 +81,7 @@ pub fn copy_file(
         total_size,
         &mut dest_file,
         &progress_bar,
-        &mut buffer,
-        &mut bytes_copied,
+        buf_size,
     )?;
 
     if !cli.verification.verify
@@ -117,11 +113,13 @@ fn copy_chunks(
     total_size: u64,
     dest_file: &mut File,
     progress_bar: &indicatif::ProgressBar,
-    buffer: &mut Vec<u8>,
-    bytes_copied: &mut u64,
+    buf_size: usize,
 ) -> std::io::Result<()> {
-    while *bytes_copied < total_size {
-        let bytes_read = src_file.read(buffer)?;
+    let mut buffer = vec![0; buf_size];
+    let mut bytes_copied = 0;
+
+    while bytes_copied < total_size {
+        let bytes_read = src_file.read(&mut buffer)?;
 
         if bytes_read == 0 {
             break;
@@ -131,7 +129,7 @@ fn copy_chunks(
 
         // all_bytes.extend(chunk);
         dest_file.write_all(chunk)?;
-        *bytes_copied += bytes_read as u64;
+        bytes_copied += bytes_read as u64;
         progress_bar.inc(bytes_read as u64);
     }
 
