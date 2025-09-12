@@ -19,7 +19,7 @@ pub fn copy_file(
     multi_progress: &MultiProgress,
     completed_tracker: Arc<Mutex<&mut CompletionTracker>>,
     retries: Arc<Mutex<Vec<PathBuf>>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> std::io::Result<()> {
     let mut src_file = File::open(src)?;
     let metadata = src_file.metadata()?;
     let total_size = metadata.len();
@@ -76,115 +76,31 @@ pub fn copy_file(
 
     let mut buffer = vec![0; buf_size];
     let mut bytes_copied = 0;
-    // let mut all_bytes = vec![];
 
-    if cli.verification.verify {
-        while bytes_copied < total_size {
-            let bytes_read = src_file.read(&mut buffer)?;
+    copy_chunks(
+        destination,
+        &mut src_file,
+        &metadata,
+        total_size,
+        &mut dest_file,
+        &progress_bar,
+        &mut buffer,
+        &mut bytes_copied,
+    )?;
 
-            if bytes_read == 0 {
-                break;
-            }
-
-            let chunk = &buffer[..bytes_read];
-
-            // all_bytes.extend(chunk);
-            dest_file.write_all(chunk)?;
-            bytes_copied += bytes_read as u64;
-            progress_bar.inc(bytes_read as u64);
-        }
-
-        progress_bar.finish();
-
-        set_file_times(
-            destination,
-            FileTime::from_system_time(metadata.accessed()?),
-            FileTime::from_system_time(metadata.modified()?),
-        )?;
-
-        let verify_bar = multi_progress.add(create_verify_bar(total_size).unwrap());
-
-        verify_bar.set_message(format!("{} -> {}", src_str, dest_str));
-
-        let mut bytes_verified = 0;
-        let mut src_hash_buf = vec![0; buf_size];
-        let mut dest_hash_buf = vec![0; buf_size];
-
-        src_file.seek(SeekFrom::Start(0))?;
-        dest_file.seek(SeekFrom::Start(0))?;
-
-        let mut different = false;
-
-        while bytes_verified < total_size {
-            let src_bytes_read = src_file.read(&mut src_hash_buf)?;
-
-            if src_bytes_read == 0 {
-                let dest_bytes_read = dest_file.read(&mut dest_hash_buf)?;
-
-                if dest_bytes_read != 0 {
-                    // destination is longer than source
-                    different = true;
-                }
-
-                break;
-            }
-
-            let dest_bytes_read = dest_file.read(&mut dest_hash_buf)?;
-
-            if src_bytes_read != dest_bytes_read {
-                // destination is shorter than source
-                different = true;
-                break;
-            }
-
-            let src_chunk = &src_hash_buf[..src_bytes_read];
-            let dest_chunk = &dest_hash_buf[..src_bytes_read];
-
-            // efficient comparison since it usually uses memcmp under the hood
-            if src_chunk != dest_chunk {
-                different = true;
-                break;
-            }
-
-            bytes_verified += src_bytes_read as u64;
-            verify_bar.inc(src_bytes_read as u64);
-        }
-
-        if different {
-            retries
-                .lock()
-                .expect("Failed to lock retries")
-                .push(src.to_path_buf())
-        } else {
-            completed_tracker
-                .lock()
-                .expect("failed to lock completed tracker")
-                .add_completed(destination)?;
-        }
-
-        verify_bar.finish();
-    } else {
-        while bytes_copied < total_size {
-            let bytes_read = src_file.read(&mut buffer)?;
-
-            if bytes_read == 0 {
-                break;
-            }
-
-            let chunk = &buffer[..bytes_read];
-            dest_file.write_all(chunk)?;
-            bytes_copied += bytes_read as u64;
-            progress_bar.inc(bytes_read as u64);
-        }
-
-        progress_bar.finish();
-
-        set_file_times(
-            destination,
-            FileTime::from_system_time(metadata.accessed()?),
-            FileTime::from_system_time(metadata.modified()?),
-        )?;
-
+    if !cli.verification.verify
+        || verify(
+            src,
+            multi_progress,
+            retries,
+            &mut src_file,
+            total_size,
+            &mut dest_file,
+            src_str,
+            dest_str,
+            buf_size,
+        )?
+    {
         completed_tracker
             .lock()
             .expect("failed to lock completed tracker")
@@ -192,6 +108,111 @@ pub fn copy_file(
     }
 
     Ok(())
+}
+
+fn copy_chunks(
+    destination: &Path,
+    src_file: &mut File,
+    metadata: &fs::Metadata,
+    total_size: u64,
+    dest_file: &mut File,
+    progress_bar: &indicatif::ProgressBar,
+    buffer: &mut Vec<u8>,
+    bytes_copied: &mut u64,
+) -> std::io::Result<()> {
+    while *bytes_copied < total_size {
+        let bytes_read = src_file.read(buffer)?;
+
+        if bytes_read == 0 {
+            break;
+        }
+
+        let chunk = &buffer[..bytes_read];
+
+        // all_bytes.extend(chunk);
+        dest_file.write_all(chunk)?;
+        *bytes_copied += bytes_read as u64;
+        progress_bar.inc(bytes_read as u64);
+    }
+
+    progress_bar.finish();
+
+    set_file_times(
+        destination,
+        FileTime::from_system_time(metadata.accessed()?),
+        FileTime::from_system_time(metadata.modified()?),
+    )?;
+
+    Ok(())
+}
+
+fn verify(
+    src: &Path,
+    multi_progress: &MultiProgress,
+    retries: Arc<Mutex<Vec<PathBuf>>>,
+    src_file: &mut File,
+    total_size: u64,
+    dest_file: &mut File,
+    src_str: &str,
+    dest_str: &str,
+    buf_size: usize,
+) -> std::io::Result<bool> {
+    let verify_bar = multi_progress.add(create_verify_bar(total_size).unwrap());
+    verify_bar.set_message(format!("{} -> {}", src_str, dest_str));
+
+    let mut bytes_verified = 0;
+    let mut src_hash_buf = vec![0; buf_size];
+    let mut dest_hash_buf = vec![0; buf_size];
+
+    src_file.seek(SeekFrom::Start(0))?;
+    dest_file.seek(SeekFrom::Start(0))?;
+
+    let mut different = false;
+
+    while bytes_verified < total_size {
+        let src_bytes_read = src_file.read(&mut src_hash_buf)?;
+
+        if src_bytes_read == 0 {
+            let dest_bytes_read = dest_file.read(&mut dest_hash_buf)?;
+
+            if dest_bytes_read != 0 {
+                // destination is longer than source
+                different = true;
+            }
+
+            break;
+        }
+
+        let dest_bytes_read = dest_file.read(&mut dest_hash_buf)?;
+
+        if src_bytes_read != dest_bytes_read {
+            // destination is shorter than source
+            different = true;
+            break;
+        }
+
+        let src_chunk = &src_hash_buf[..src_bytes_read];
+        let dest_chunk = &dest_hash_buf[..src_bytes_read];
+
+        // efficient comparison since it usually uses memcmp under the hood
+        if src_chunk != dest_chunk {
+            different = true;
+            break;
+        }
+
+        bytes_verified += src_bytes_read as u64;
+        verify_bar.inc(src_bytes_read as u64);
+    }
+
+    if different {
+        retries
+            .lock()
+            .expect("Failed to lock retries")
+            .push(src.to_path_buf())
+    }
+
+    verify_bar.finish();
+    Ok(!different)
 }
 
 pub fn copy_file_threaded(
