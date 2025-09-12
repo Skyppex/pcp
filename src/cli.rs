@@ -96,17 +96,6 @@ impl ByteSize {
             ByteUnit::GiB => self.value * 1024 * 1024 * 1024,
         }
     }
-
-    pub fn is_decimal_unit(&self) -> bool {
-        match self.unit {
-            ByteUnit::KB | ByteUnit::MB | ByteUnit::GB => true,
-            ByteUnit::B | ByteUnit::KiB | ByteUnit::MiB | ByteUnit::GiB => false,
-        }
-    }
-
-    pub fn is_binary_unit(&self) -> bool {
-        !self.is_decimal_unit()
-    }
 }
 
 impl FromStr for ByteSize {

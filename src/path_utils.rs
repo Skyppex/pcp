@@ -3,13 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub fn convert_to_path(path: Option<&str>) -> Result<Option<PathBuf>> {
-    Ok(match path {
-        Some(path) => Some(get_path(path)?),
-        None => None,
-    })
-}
-
 pub fn get_path(path: impl AsRef<Path>) -> Result<PathBuf> {
     let path_str = path.as_ref().to_str().unwrap();
     let path = match path_str {

@@ -27,7 +27,6 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
     if cli.destinations.is_empty() {
         eprintln!("You must specify at least 1 destination path");
         std::process::exit(1);
-        return Ok(());
     }
 
     ThreadPoolBuilder::new()
@@ -45,7 +44,6 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
     if destinations.contains(&source) {
         eprintln!("Source and Destination paths are the same");
         std::process::exit(1);
-        return Ok(());
     }
 
     handle_multiple_files(cli, source, destinations)?;

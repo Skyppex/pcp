@@ -18,13 +18,11 @@ pub struct CompletionTracker {
     completed_file: Option<File>,
     dest: Option<PathBuf>,
     completed_path: Option<PathBuf>,
-    completed_len: u64,
     progress_files: HashMap<PathBuf, Progress>,
 }
 
 struct Progress {
     file: File,
-    total_bytes: usize,
 }
 
 impl CompletionTracker {
@@ -34,7 +32,6 @@ impl CompletionTracker {
                 completed_file: None,
                 dest: None,
                 completed_path: None,
-                completed_len: 0,
                 progress_files: HashMap::new(),
             });
         }
@@ -54,13 +51,10 @@ impl CompletionTracker {
             .truncate(false)
             .open(&completed_file_path)?;
 
-        let len = file.metadata()?.len();
-
         Ok(CompletionTracker {
             completed_file: Some(file),
             dest: Some(dest_dir.to_path_buf()),
             completed_path: Some(completed_file_path),
-            completed_len: len,
             progress_files: HashMap::new(),
         })
     }
@@ -138,7 +132,7 @@ impl CompletionTracker {
             .as_bytes(),
         )?;
 
-        let progress = Progress { file, total_bytes };
+        let progress = Progress { file };
 
         let _ = self.progress_files.insert(file_path, progress);
 

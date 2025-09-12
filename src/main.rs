@@ -1,13 +1,9 @@
-#![allow(dead_code, unreachable_code)]
-
 mod cli;
 mod file_operations;
-mod io_utils;
 mod path_utils;
 mod program;
 mod progress;
 mod progress_bar;
-mod utils;
 
 use clap::Parser;
 use cli::Cli;
