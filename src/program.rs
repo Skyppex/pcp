@@ -1,12 +1,10 @@
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::path::PathBuf;
 
 use rayon::{
     iter::{IntoParallelRefIterator, ParallelIterator},
     ThreadPoolBuilder,
 };
+
 use walkdir::WalkDir;
 
 use crate::{
@@ -71,25 +69,17 @@ fn handle_multiple_files(
             .filter(|e| !completed.contains(e.file_name()))
             .collect();
 
-        let completion_tracker = Arc::new(Mutex::new(&mut tracker));
-
         if cli.move_files {
             move_files_par(
                 &cli,
                 &source,
                 &destination,
-                completion_tracker.clone(),
+                &mut tracker,
                 destinations.len() == 1,
                 &files,
             )?;
         } else {
-            copy_files_par(
-                &cli,
-                &source,
-                &destination,
-                completion_tracker.clone(),
-                &files,
-            )?;
+            copy_files_par(&cli, &source, &destination, &mut tracker, &files)?;
         }
 
         if cli.purge {

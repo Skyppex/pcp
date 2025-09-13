@@ -17,20 +17,23 @@ pub fn copy_file(
     src: &Path,
     destination: &Path,
     multi_progress: &MultiProgress,
-    completed_tracker: Arc<Mutex<&mut CompletionTracker>>,
+    completed_tracker: &CompletionTracker,
     retries: Arc<Mutex<Vec<PathBuf>>>,
 ) -> std::io::Result<()> {
     let mut src_file = File::open(src)?;
     let metadata = src_file.metadata()?;
     let total_size = metadata.len();
 
-    match cli.overwrite {
-        crate::cli::OverwriteMode::Never => {
+    match (&cli.overwrite, &cli.use_progress) {
+        (_, true) => {
+            // Proceed with writing the file
+        }
+        (crate::cli::OverwriteMode::Never, _) => {
             if destination.exists() {
                 return Ok(());
             }
         }
-        crate::cli::OverwriteMode::SizeDiffers => {
+        (crate::cli::OverwriteMode::SizeDiffers, _) => {
             if destination.exists() {
                 let dest_size = destination.metadata()?.len();
 
@@ -39,7 +42,7 @@ pub fn copy_file(
                 }
             }
         }
-        crate::cli::OverwriteMode::Always => {
+        (crate::cli::OverwriteMode::Always, _) => {
             // Proceed with writing the file
         }
     }
@@ -48,7 +51,7 @@ pub fn copy_file(
         .write(true)
         .read(true)
         .create(true)
-        .truncate(true)
+        .truncate(!cli.use_progress)
         .open(destination)?;
 
     // Create a progress bar for the file
@@ -82,6 +85,7 @@ pub fn copy_file(
         &mut dest_file,
         &progress_bar,
         buf_size,
+        completed_tracker,
     )?;
 
     if !cli.verification.verify
@@ -97,10 +101,7 @@ pub fn copy_file(
             buf_size,
         )?
     {
-        completed_tracker
-            .lock()
-            .expect("failed to lock completed tracker")
-            .add_completed(destination)?;
+        completed_tracker.add_completed(destination)?;
     }
 
     Ok(())
@@ -114,9 +115,29 @@ fn copy_chunks(
     dest_file: &mut File,
     progress_bar: &indicatif::ProgressBar,
     buf_size: usize,
+    completed_tracker: &CompletionTracker,
 ) -> std::io::Result<()> {
     let mut buffer = vec![0; buf_size];
     let mut bytes_copied = 0;
+
+    let file_name = destination
+        .file_name()
+        .expect("Destination should have a file name");
+
+    let progress = completed_tracker.add_progress_file(file_name, total_size)?;
+
+    if let Some(progress) = progress {
+        src_file.seek(SeekFrom::Start(progress.current))?;
+        dest_file.seek(SeekFrom::Start(progress.current))?;
+        progress_bar.set_position(progress.current);
+        bytes_copied = progress.current;
+
+        // TODO: handle this case more gracefully
+        // this now just crashes the program and halts all ongoing copying
+        assert_eq!(dest_file.stream_position().unwrap(), progress.current);
+        assert_eq!(src_file.stream_position().unwrap(), progress.current);
+        assert_eq!(metadata.len(), progress.total);
+    }
 
     while bytes_copied < total_size {
         let bytes_read = src_file.read(&mut buffer)?;
@@ -127,10 +148,10 @@ fn copy_chunks(
 
         let chunk = &buffer[..bytes_read];
 
-        // all_bytes.extend(chunk);
         dest_file.write_all(chunk)?;
         bytes_copied += bytes_read as u64;
-        progress_bar.inc(bytes_read as u64);
+        completed_tracker.write_progress(file_name, bytes_copied)?;
+        progress_bar.set_position(bytes_copied);
     }
 
     progress_bar.finish();
@@ -140,6 +161,8 @@ fn copy_chunks(
         FileTime::from_system_time(metadata.accessed()?),
         FileTime::from_system_time(metadata.modified()?),
     )?;
+
+    completed_tracker.remove_progress_file(file_name)?;
 
     Ok(())
 }
@@ -203,6 +226,8 @@ fn verify(
     }
 
     if different {
+        eprintln!("  Verification failed for {}", dest_str);
+
         retries
             .lock()
             .expect("Failed to lock retries")
@@ -217,7 +242,7 @@ pub fn copy_files_par(
     cli: &Cli,
     source: &Path,
     destination: &Path,
-    completion_tracker: Arc<Mutex<&mut CompletionTracker>>,
+    completion_tracker: &CompletionTracker,
     files: &Vec<DirEntry>,
 ) -> std::io::Result<()> {
     let retries = Arc::new(Mutex::new(vec![]));
@@ -235,7 +260,7 @@ pub fn copy_files_par(
                 destination,
                 cli,
                 &multi_progress,
-                completion_tracker.clone(),
+                completion_tracker,
                 retries.clone(),
             )?;
         }
@@ -277,7 +302,7 @@ pub fn copy_files_par(
                 destination,
                 &cli,
                 &multi_progress,
-                completion_tracker.clone(),
+                completion_tracker,
                 Arc::new(Mutex::new(vec![])),
             )?;
         }
@@ -292,7 +317,7 @@ pub fn move_files_par(
     cli: &Cli,
     source: &Path,
     destination: &Path,
-    completion_tracker: Arc<Mutex<&mut CompletionTracker>>,
+    completion_tracker: &CompletionTracker,
     try_rename: bool,
     files: &Vec<DirEntry>,
 ) -> std::io::Result<()> {
@@ -320,7 +345,7 @@ pub fn move_files_par(
                 destination,
                 cli,
                 &multi_progress,
-                completion_tracker.clone(),
+                completion_tracker,
                 retries.clone(),
             )?;
 
@@ -369,7 +394,7 @@ pub fn move_files_par(
                 destination,
                 &cli,
                 &multi_progress,
-                completion_tracker.clone(),
+                completion_tracker,
                 retries.clone(),
             )?;
 
@@ -394,7 +419,7 @@ fn create_dirs_and_copy_file(
     destination: &Path,
     cli: &Cli,
     multi_progress: &MultiProgress,
-    completion_tracker: Arc<Mutex<&mut CompletionTracker>>,
+    completion_tracker: &CompletionTracker,
     retries: Arc<Mutex<Vec<PathBuf>>>,
 ) -> std::io::Result<()> {
     let destination_path = destination.join(relative_path);
@@ -408,7 +433,7 @@ fn create_dirs_and_copy_file(
         path,
         &destination_path,
         multi_progress,
-        completion_tracker.clone(),
+        completion_tracker,
         retries.clone(),
     ) {
         eprintln!("Error copying file: {:?}", e);

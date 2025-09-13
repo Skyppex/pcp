@@ -41,7 +41,7 @@ pub struct Cli {
     /// track progress in a special .pcp/ directory which
     /// is removed once the job is done.
     /// if passed and the .pcp/ directory already exists, it will be
-    /// read before starting the copy job
+    /// read before starting the copy job.
     #[arg(long)]
     pub use_progress: bool,
 
