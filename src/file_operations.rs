@@ -318,7 +318,6 @@ pub fn move_files_par(
     source: &Path,
     destination: &Path,
     completion_tracker: &CompletionTracker,
-    try_rename: bool,
     files: &Vec<DirEntry>,
 ) -> std::io::Result<()> {
     let retries = Arc::new(Mutex::new(vec![]));
@@ -330,15 +329,6 @@ pub fn move_files_par(
         let prefix = source.to_str().expect("Invalid path");
 
         if let Ok(relative_path) = path.strip_prefix(prefix) {
-            if try_rename {
-                let dest = destination.join(relative_path);
-
-                if std::fs::rename(path, &dest).is_ok() {
-                    println!("Renamed {} -> {}", path.display(), dest.display());
-                    return Ok(());
-                }
-            }
-
             create_dirs_and_copy_file(
                 path,
                 relative_path,

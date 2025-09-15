@@ -70,14 +70,14 @@ fn handle_multiple_files(
             .collect();
 
         if cli.move_files {
-            move_files_par(
-                &cli,
-                &source,
-                &destination,
-                &mut tracker,
-                destinations.len() == 1,
-                &files,
-            )?;
+            if destinations.len() == 1 {
+                if std::fs::rename(&source, &destination).is_ok() {
+                    println!("Renamed {} -> {}", source.display(), destination.display());
+                    return Ok(());
+                }
+            }
+
+            move_files_par(&cli, &source, &destination, &mut tracker, &files)?;
         } else {
             copy_files_par(&cli, &source, &destination, &mut tracker, &files)?;
         }
