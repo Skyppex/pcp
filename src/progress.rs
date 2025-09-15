@@ -9,11 +9,11 @@ use std::{
 
 use os_str_bytes::{OsStrBytes, OsStringBytes};
 
-const PROGRESS_DIR: &'static str = ".pcp";
-const COMPLETED_FILE_NAME: &'static str = ".pcp-completed.pcp";
-const PROGRESS_EXT: &'static str = ".pcp";
+const PROGRESS_DIR: &str = ".pcp";
+const COMPLETED_FILE_NAME: &str = ".pcp-completed.pcp";
+const PROGRESS_EXT: &str = ".pcp";
 const NEW_LINE_BUFFER: usize = 128;
-const BLANK_SPACE_CHAR: &'static str = " "; // space
+const BLANK_SPACE_CHAR: &str = " "; // space
 
 pub struct CompletionTracker {
     completed_file: Option<Mutex<File>>,
@@ -84,8 +84,8 @@ impl CompletionTracker {
 
         let mut buf = vec![];
         let Ok(bytes_read) = file
-            .lock()
-            .expect("failed to lock file")
+            .get_mut()
+            .expect("failed to get mut file")
             .read_to_end(&mut buf)
         else {
             return HashSet::new();
@@ -112,7 +112,7 @@ impl CompletionTracker {
             .unwrap()
             .as_os_str()
             .to_io_bytes()
-            .ok_or_else(|| std::io::ErrorKind::Other)?;
+            .ok_or(std::io::ErrorKind::Other)?;
 
         let mut file = file.lock().expect("Failed to lock file");
         file.write_all(bytes)?;
@@ -220,7 +220,7 @@ impl CompletionTracker {
 
         let progress = hash_map
             .get(&file_path)
-            .ok_or_else(|| std::io::ErrorKind::NotFound)?;
+            .ok_or(std::io::ErrorKind::NotFound)?;
 
         let mut file = progress.file.lock().expect("Failed to lock file");
         let data = current_bytes.to_string();

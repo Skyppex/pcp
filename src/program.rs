@@ -70,27 +70,25 @@ fn handle_multiple_files(
             .collect();
 
         if cli.move_files {
-            if destinations.len() == 1 {
-                if std::fs::rename(&source, &destination).is_ok() {
-                    println!("Renamed {} -> {}", source.display(), destination.display());
-                    return Ok(());
-                }
+            if destinations.len() == 1 && std::fs::rename(&source, destination).is_ok() {
+                println!("Renamed {} -> {}", source.display(), destination.display());
+                return Ok(());
             }
 
-            move_files_par(&cli, &source, &destination, &mut tracker, &files)?;
+            move_files_par(&cli, &source, destination, &tracker, &files)?;
         } else {
-            copy_files_par(&cli, &source, &destination, &mut tracker, &files)?;
+            copy_files_par(&cli, &source, destination, &tracker, &files)?;
         }
 
         if cli.purge {
-            let dest_files = WalkDir::new(&destination)
+            let dest_files = WalkDir::new(destination)
                 .into_iter()
                 .filter_map(Result::ok)
                 .filter(|e| e.path().is_file())
                 .collect::<Vec<_>>();
 
             dest_files.par_iter().for_each(|dest_file| {
-                let dest_path = dest_file.path().strip_prefix(&destination);
+                let dest_path = dest_file.path().strip_prefix(destination);
 
                 if !files
                     .iter()
