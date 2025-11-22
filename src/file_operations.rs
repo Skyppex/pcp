@@ -244,10 +244,9 @@ pub fn copy_files_par(
     destination: &Path,
     completion_tracker: &CompletionTracker,
     files: &Vec<DirEntry>,
+    multi_progress: &MultiProgress,
 ) -> std::io::Result<()> {
     let retries = Arc::new(Mutex::new(vec![]));
-    let multi_progress = MultiProgress::new();
-    multi_progress.set_move_cursor(true);
 
     files.par_iter().try_for_each(|entry| {
         let path = entry.path();
@@ -319,10 +318,9 @@ pub fn move_files_par(
     destination: &Path,
     completion_tracker: &CompletionTracker,
     files: &Vec<DirEntry>,
+    multi_progress: &MultiProgress,
 ) -> std::io::Result<()> {
     let retries = Arc::new(Mutex::new(vec![]));
-    let multi_progress = MultiProgress::new();
-    multi_progress.set_move_cursor(true);
 
     files.par_iter().try_for_each(|entry| {
         let path = entry.path();
@@ -412,7 +410,11 @@ fn create_dirs_and_copy_file(
     completion_tracker: &CompletionTracker,
     retries: Arc<Mutex<Vec<PathBuf>>>,
 ) -> std::io::Result<()> {
-    let destination_path = destination.join(relative_path);
+    let destination_path = if relative_path == Path::new("") {
+        destination.to_path_buf()
+    } else {
+        destination.join(relative_path)
+    };
 
     if let Some(parent) = destination_path.parent() {
         fs::create_dir_all(parent).unwrap();

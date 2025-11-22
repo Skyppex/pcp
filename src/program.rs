@@ -1,7 +1,11 @@
-use std::path::PathBuf;
+use std::{
+    io::{IsTerminal, Read},
+    path::PathBuf,
+};
 
+use indicatif::MultiProgress;
 use rayon::{
-    iter::{IntoParallelRefIterator, ParallelIterator},
+    iter::{IntoParallelRefIterator, ParallelBridge, ParallelIterator},
     ThreadPoolBuilder,
 };
 
@@ -22,7 +26,12 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         ));
     }
 
-    if cli.destinations.is_empty() {
+    let mut stdin = std::io::stdin();
+    let mut input = String::new();
+
+    let has_stdin = !stdin.is_terminal() && stdin.read_to_string(&mut input)? != 0;
+
+    if !has_stdin && cli.destinations.is_empty() {
         eprintln!("You must specify at least 1 destination path");
         std::process::exit(1);
     }
@@ -32,26 +41,65 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         .build_global()
         .unwrap();
 
-    let source = get_path(&cli.source)?;
-    let destinations = cli
-        .destinations
-        .iter()
-        .map(get_path)
-        .collect::<Result<Vec<_>, _>>()?;
+    if !has_stdin {
+        let source = get_path(&cli.source.as_ref().ok_or(std::io::ErrorKind::Other)?)?;
+        let destinations = cli
+            .destinations
+            .iter()
+            .map(get_path)
+            .collect::<Result<Vec<_>, _>>()?;
 
-    if destinations.contains(&source) {
-        eprintln!("Source and Destination paths are the same");
+        if destinations.contains(&source) {
+            eprintln!("Source and Destination paths are the same");
+            std::process::exit(1);
+        }
+
+        let multi_progress = MultiProgress::new();
+        multi_progress.set_move_cursor(true);
+        handle_multiple_files(cli, source, destinations, &multi_progress)?;
+    } else {
+        let lines = input.lines();
+
+        let multi_progress = MultiProgress::new();
+        multi_progress.set_move_cursor(true);
+
+        lines.par_bridge().try_for_each(|line| {
+            if line.trim_start().starts_with('#') {
+                return Ok(());
+            }
+
+            let (source, destinations) = parse_operation(line)?;
+            handle_multiple_files(cli.clone(), source, destinations, &multi_progress)
+        })?;
+    }
+
+    Ok(())
+}
+
+fn parse_operation(line: &str) -> std::io::Result<(PathBuf, Vec<PathBuf>)> {
+    let mut split = line.split(':');
+    let source = split.next().ok_or(std::io::ErrorKind::Other)?;
+    let destinations = split.collect::<Vec<_>>();
+
+    if destinations.is_empty() {
+        eprintln!("You must specify at least 1 destination path");
         std::process::exit(1);
     }
 
-    handle_multiple_files(cli, source, destinations)?;
-    Ok(())
+    let source = get_path(source)?;
+    let destinations = destinations
+        .iter()
+        .map(|d| get_path(d))
+        .collect::<std::io::Result<Vec<_>>>()?;
+
+    Ok((source, destinations))
 }
 
 fn handle_multiple_files(
     cli: Cli,
     source: PathBuf,
     destinations: Vec<PathBuf>,
+    multi_progress: &MultiProgress,
 ) -> std::io::Result<()> {
     let files = WalkDir::new(&source)
         .into_iter()
@@ -75,9 +123,9 @@ fn handle_multiple_files(
                 return Ok(());
             }
 
-            move_files_par(&cli, &source, destination, &tracker, &files)?;
+            move_files_par(&cli, &source, destination, &tracker, &files, multi_progress)?;
         } else {
-            copy_files_par(&cli, &source, destination, &tracker, &files)?;
+            copy_files_par(&cli, &source, destination, &tracker, &files, multi_progress)?;
         }
 
         if cli.purge {

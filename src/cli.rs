@@ -6,7 +6,7 @@ use clap::{Error, Parser, ValueEnum};
 #[derive(Debug, Clone, PartialEq, Parser)]
 pub struct Cli {
     /// the source directory to copy from
-    pub source: PathBuf,
+    pub source: Option<PathBuf>,
 
     /// the destination directories to copy into
     pub destinations: Vec<PathBuf>,
