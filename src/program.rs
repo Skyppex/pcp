@@ -86,10 +86,10 @@ fn parse_operation(line: &str) -> std::io::Result<(PathBuf, Vec<PathBuf>)> {
         std::process::exit(1);
     }
 
-    let source = get_path(source)?;
+    let source = get_path(source.trim())?;
     let destinations = destinations
         .iter()
-        .map(|d| get_path(d))
+        .map(|d| get_path(d.trim()))
         .collect::<std::io::Result<Vec<_>>>()?;
 
     Ok((source, destinations))
