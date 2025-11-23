@@ -1,0 +1,9 @@
+a/file0:b/file1:c/file2
+a/file1:b/file2:c/file3
+a/file2:b/file3:c/file4
+a/file3:b/file4:c/file5
+a/file4:b/file5:c/file6
+a/file5:b/file6:c/file7
+a/file6:b/file7:c/file8
+a/file7:b/file8:c/file9
+a:d
