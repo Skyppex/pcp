@@ -49,11 +49,13 @@
           pkgConfig = pkgs.pkg-config;
           inherit release;
         };
+
       checks = import ./checks.nix {
         src = self;
         naersk = naerskLib;
         pkgs = pkgs;
       };
+
       apps = import ./apps.nix {
         pkgs = pkgs;
       };

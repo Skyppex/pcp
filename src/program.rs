@@ -42,7 +42,7 @@ pub fn run(cli: Cli) -> std::io::Result<()> {
         .unwrap();
 
     if !has_stdin {
-        let source = get_path(&cli.source.as_ref().ok_or(std::io::ErrorKind::Other)?)?;
+        let source = get_path(cli.source.as_ref().ok_or(std::io::ErrorKind::Other)?)?;
         let destinations = cli
             .destinations
             .iter()

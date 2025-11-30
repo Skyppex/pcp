@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 mod cli;
 mod file_operations;
 mod path_utils;

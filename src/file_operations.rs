@@ -258,7 +258,7 @@ pub fn copy_files_par(
                 relative_path,
                 destination,
                 cli,
-                &multi_progress,
+                multi_progress,
                 completion_tracker,
                 retries.clone(),
             )?;
@@ -300,7 +300,7 @@ pub fn copy_files_par(
                 relative_path,
                 destination,
                 &cli,
-                &multi_progress,
+                multi_progress,
                 completion_tracker,
                 Arc::new(Mutex::new(vec![])),
             )?;
@@ -332,7 +332,7 @@ pub fn move_files_par(
                 relative_path,
                 destination,
                 cli,
-                &multi_progress,
+                multi_progress,
                 completion_tracker,
                 retries.clone(),
             )?;
@@ -381,7 +381,7 @@ pub fn move_files_par(
                 relative_path,
                 destination,
                 &cli,
-                &multi_progress,
+                multi_progress,
                 completion_tracker,
                 retries.clone(),
             )?;
