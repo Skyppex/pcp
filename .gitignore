@@ -4,6 +4,7 @@
 *.pcp
 /result
 /.direnv
+/.devenv
 /a
 /b
 /c
